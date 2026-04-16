@@ -1,0 +1,58 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Provider {
+  id        String   @id @default(cuid())
+  name      String
+  type      String
+  baseUrl   String   @map("base_url")
+  apiKey    String   @map("api_key")
+  model     String
+  isDefault Boolean  @default(false) @map("is_default")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt      @map("updated_at")
+  novels    Novel[]
+
+  @@map("providers")
+}
+
+model Novel {
+  id          String   @id @default(cuid())
+  title       String
+  providerId  String   @map("provider_id")
+  provider    Provider @relation(fields: [providerId], references: [id])
+  genre       String
+  target      String
+  wordCount   String   @map("word_count")
+  style       String
+  pov         String
+  background  String
+  protagonist String?  @map("protagonist")
+  conflict    String?
+  customNote  String?  @map("custom_note")
+  status      String   @default("generating")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt      @map("updated_at")
+  chapters    Chapter[]
+
+  @@map("novels")
+}
+
+model Chapter {
+  id        String   @id @default(cuid())
+  novelId   String   @map("novel_id")
+  novel     Novel    @relation(fields: [novelId], references: [id])
+  number    Int
+  title     String
+  content   String   @db.Text
+  wordCount Int      @map("word_count")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([novelId, number])
+  @@map("chapters")
+}
