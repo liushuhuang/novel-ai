@@ -10,7 +10,7 @@ export async function GET(
     where: { id },
     include: {
       provider: { select: { id: true, name: true, type: true, baseUrl: true, model: true } },
-      chapters: { orderBy: { number: 'asc' }, select: { id: true, number: true, title: true, wordCount: true, createdAt: true } },
+      chapters: { orderBy: { number: 'asc' }, select: { id: true, number: true, title: true, content: true, wordCount: true, createdAt: true } },
     },
   })
 
