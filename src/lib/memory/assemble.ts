@@ -31,7 +31,16 @@ function selectTopForeshadowing(
   limit: number,
 ): ForeshadowingItem[] {
   return items
-    .map(f => ({ f, score: scoreByRecency(chapterNumber, f.chapterIntroduced) }))
+    .map(f => {
+      const age = chapterNumber - f.chapterIntroduced
+      let score = scoreByRecency(chapterNumber, f.chapterIntroduced)
+      if (!f.resolved) {
+        score += Math.min(age, 10) * 2
+      } else {
+        score += 2
+      }
+      return { f, score }
+    })
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
     .map(e => e.f)
@@ -63,6 +72,7 @@ export function assembleMemoryContext(
   let characters = ''
   let openThreads = ''
   let foreshadowing = ''
+  let recentlyResolved = ''
   let relationships = ''
   let arcSummary = ''
 
@@ -80,17 +90,28 @@ export function assembleMemoryContext(
     ).join('\n')
 
     const topForeshadowing = selectTopForeshadowing(novelMemory.foreshadowing, chapterNumber, 8)
-    foreshadowing = topForeshadowing.map(f =>
-      `- ${f.hint}（第${f.chapterIntroduced}章埋下）`
-    ).join('\n')
+    const unresolvedLines: string[] = []
+    const resolvedLines: string[] = []
+    for (const f of topForeshadowing) {
+      if (f.resolved) {
+        resolvedLines.push(`- ${f.hint}（第${f.chapterIntroduced}章埋下，${f.resolution}）`)
+      } else {
+        const age = chapterNumber - f.chapterIntroduced
+        const urgency = age > 10 ? '【请优先处理】' : ''
+        unresolvedLines.push(`- ${f.hint}（第${f.chapterIntroduced}章埋下，已过${age}章）${urgency}`)
+      }
+    }
+    foreshadowing = unresolvedLines.join('\n')
+    recentlyResolved = resolvedLines.join('\n')
 
-    const allText = [characters, openThreads, foreshadowing].join('\n')
+    const allText = [characters, openThreads, foreshadowing, recentlyResolved].join('\n')
     if (estimateTokens(allText) > MEMORY_BUDGET_TOKENS) {
       const ratio = MEMORY_BUDGET_TOKENS / estimateTokens(allText)
       const maxChars = Math.floor(allText.length * ratio * 0.8)
       characters = characters.slice(0, Math.floor(maxChars * 0.45))
-      openThreads = openThreads.slice(0, Math.floor(maxChars * 0.35))
-      foreshadowing = foreshadowing.slice(0, Math.floor(maxChars * 0.2))
+      openThreads = openThreads.slice(0, Math.floor(maxChars * 0.3))
+      foreshadowing = foreshadowing.slice(0, Math.floor(maxChars * 0.15))
+      recentlyResolved = recentlyResolved.slice(0, Math.floor(maxChars * 0.1))
     }
   }
 
@@ -106,6 +127,7 @@ export function assembleMemoryContext(
     characters,
     openThreads,
     foreshadowing,
+    recentlyResolved,
     relationships,
   }
 }

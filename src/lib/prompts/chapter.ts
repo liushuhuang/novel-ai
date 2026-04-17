@@ -1,4 +1,6 @@
 import type { MemoryContext } from '@/lib/memory/types'
+import { getAntiAIExamples } from './anti-ai'
+import { getGenreRules } from './genre-rules'
 
 const TARGET_LABELS: Record<string, string> = { male: '男频', female: '女频', unisex: '通用' }
 const WORD_COUNT_LABELS: Record<string, string> = {
@@ -45,6 +47,15 @@ export function getChapterPrompt(
     prompt += `\n- 补充说明：${config.customNote}`
   }
 
+  // 类型专属写作规范
+  const genreRules = getGenreRules(config.genre)
+  if (genreRules) {
+    prompt += `\n\n${genreRules}`
+  }
+
+  // 反 AI 写作参考
+  prompt += `\n\n${getAntiAIExamples()}`
+
   if (chapterNumber === 1) {
     prompt += `\n\n这是小说的第一章。请从头开始创作，建立世界观、引入主角和核心冲突。`
   } else if (memory) {
@@ -71,7 +82,11 @@ export function getChapterPrompt(
     }
 
     if (memory.foreshadowing) {
-      prompt += `\n\n待回收伏笔：\n${memory.foreshadowing}`
+      prompt += `\n\n待回收伏笔（请优先处理陈旧伏笔）：\n${memory.foreshadowing}`
+    }
+
+    if (memory.recentlyResolved) {
+      prompt += `\n\n近期已回收伏笔（参考）：\n${memory.recentlyResolved}`
     }
 
     prompt += `\n\n请在此基础上继续创作，保持情节连贯，人物行为一致，妥善推进或回收以上剧情线和伏笔。`

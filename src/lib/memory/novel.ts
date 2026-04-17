@@ -66,6 +66,25 @@ export function computeNovelMemory(
     }
   }
 
+  // Mark resolved foreshadowing
+  const resolvedHints = new Set<string>()
+  for (const cm of chapterMemories) {
+    for (const hint of cm.data.resolvedForeshadowing) {
+      resolvedHints.add(hint)
+    }
+  }
+  for (const f of foreshadowingList) {
+    if (resolvedHints.has(f.hint) && !f.resolved) {
+      f.resolved = true
+      for (const cm of chapterMemories) {
+        if (cm.data.resolvedForeshadowing.includes(f.hint)) {
+          f.resolution = `第${cm.chapterNumber}章回收`
+          break
+        }
+      }
+    }
+  }
+
   const worldRules = existingMemory?.worldRules ?? []
   const majorEvents = arcMemories.flatMap(a => a.keyEvents).slice(0, 50)
   const lastChapterNum = chapterMemories.length > 0
@@ -77,7 +96,14 @@ export function computeNovelMemory(
     worldRules,
     majorEvents,
     openThreads: Array.from(threadMap.values()).filter(t => t.status !== 'resolved'),
-    foreshadowing: foreshadowingList.filter(f => !f.resolved),
+    foreshadowing: foreshadowingList.filter(f => {
+      if (!f.resolved) return true
+      if (f.resolution) {
+        const resolvedChapter = parseInt(f.resolution.match(/第(\d+)章/)?.[1] ?? '0')
+        return resolvedChapter >= lastChapterNum - 2
+      }
+      return false
+    }),
     lastChapterNum,
   }
 }

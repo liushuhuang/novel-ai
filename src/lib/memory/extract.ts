@@ -61,6 +61,7 @@ export async function runMemoryExtraction(
       emotions: JSON.stringify(chapterMemoryData.emotions),
       resources: JSON.stringify(chapterMemoryData.resources),
       relationships: JSON.stringify(chapterMemoryData.relationships),
+      resolvedForeshadowing: JSON.stringify(chapterMemoryData.resolvedForeshadowing),
     },
     update: {
       summary: chapterMemoryData.summary,
@@ -72,6 +73,7 @@ export async function runMemoryExtraction(
       emotions: JSON.stringify(chapterMemoryData.emotions),
       resources: JSON.stringify(chapterMemoryData.resources),
       relationships: JSON.stringify(chapterMemoryData.relationships),
+      resolvedForeshadowing: JSON.stringify(chapterMemoryData.resolvedForeshadowing),
     },
   })
 
@@ -172,6 +174,7 @@ function parseChapterMemoryJson(cm: {
   emotions: string
   resources: string
   relationships: string
+  resolvedForeshadowing: string
 }): ChapterMemoryData {
   return {
     summary: cm.summary,
@@ -183,5 +186,6 @@ function parseChapterMemoryJson(cm: {
     emotions: JSON.parse(cm.emotions),
     resources: JSON.parse(cm.resources),
     relationships: JSON.parse(cm.relationships),
+    resolvedForeshadowing: JSON.parse(cm.resolvedForeshadowing || '[]'),
   }
 }

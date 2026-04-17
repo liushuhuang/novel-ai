@@ -50,6 +50,7 @@ export interface ChapterMemoryData {
   emotions: EmotionShift[]
   resources: ResourceChange[]
   relationships: RelationshipChange[]
+  resolvedForeshadowing: string[]
 }
 
 export interface ArcMemoryData {
@@ -74,5 +75,6 @@ export interface MemoryContext {
   characters: string
   openThreads: string
   foreshadowing: string
+  recentlyResolved: string
   relationships: string
 }

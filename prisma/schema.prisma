@@ -73,6 +73,7 @@ model ChapterMemory {
   emotions      String   @db.Text
   resources     String   @db.Text
   relationships String   @db.Text
+  resolvedForeshadowing String @db.Text @default("[]") @map("resolved_foreshadowing")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt      @map("updated_at")
   novel         Novel    @relation(fields: [novelId], references: [id])

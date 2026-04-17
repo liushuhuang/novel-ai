@@ -79,6 +79,7 @@ export async function POST(
           emotions: JSON.parse(cm.emotions || '[]'),
           resources: JSON.parse(cm.resources || '[]'),
           relationships: JSON.parse(cm.relationships || '[]'),
+          resolvedForeshadowing: JSON.parse(cm.resolvedForeshadowing || '[]'),
         })
       } catch {
         // Skip malformed memory records
