@@ -92,7 +92,9 @@ export function getChapterPrompt(
     prompt += `\n\n请在此基础上继续创作，保持情节连贯，人物行为一致，妥善推进或回收以上剧情线和伏笔。`
   }
 
-  prompt += `\n\n请直接输出章节内容，格式为"第${chapterNumber}章：标题"，然后是正文。`
+  prompt += `\n\n请直接输出章节内容，格式为"第${chapterNumber}章：标题"，然后是正文。
+
+【再次强调】正文中严禁出现任何真实公司名、品牌名、国家名、城市名。所有组织和地名必须完全虚构。`
 
   return prompt
 }

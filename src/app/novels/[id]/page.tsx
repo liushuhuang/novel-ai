@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useEffect, useCallback, use } from 'react'
-import { RefreshCw, Play } from 'lucide-react'
+import { RefreshCw, Play, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ChapterList } from '@/components/novels/chapter-list'
 import { StreamingText } from '@/components/novels/streaming-text'
+import { NovelEditDialog } from '@/components/novels/novel-edit-dialog'
 
 interface Chapter {
   id: string
@@ -19,6 +20,14 @@ interface Novel {
   title: string
   genre: string
   status: string
+  target: string
+  wordCount: string
+  style: string
+  pov: string
+  background: string
+  protagonist: string | null
+  conflict: string | null
+  customNote: string | null
   provider: { name: string; model: string }
   chapters: Chapter[]
 }
@@ -30,6 +39,7 @@ export default function NovelReadPage({ params }: { params: Promise<{ id: string
   const [isGenerating, setIsGenerating] = useState(false)
   const [regenerating, setRegenerating] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
+  const [editOpen, setEditOpen] = useState(false)
 
   const fetchNovel = useCallback(async () => {
     try {
@@ -93,6 +103,14 @@ export default function NovelReadPage({ params }: { params: Promise<{ id: string
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-2xl font-bold">{novel.title}</h1>
             <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setEditOpen(true)}
+              >
+                <Settings className="h-3 w-3 mr-1" />
+                编辑设置
+              </Button>
               {currentChapter && (
                 <Button
                   variant="outline"
@@ -149,6 +167,24 @@ export default function NovelReadPage({ params }: { params: Promise<{ id: string
           )}
         </div>
       </div>
+
+      <NovelEditDialog
+        novelId={novel.id}
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        initialData={{
+          genre: novel.genre,
+          target: novel.target,
+          wordCount: novel.wordCount,
+          style: novel.style,
+          pov: novel.pov,
+          background: novel.background,
+          protagonist: novel.protagonist ?? '',
+          conflict: novel.conflict ?? '',
+          customNote: novel.customNote ?? '',
+        }}
+        onSaved={fetchNovel}
+      />
     </div>
   )
 }
