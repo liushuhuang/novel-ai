@@ -38,7 +38,10 @@ model Novel {
   status      String   @default("generating")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt      @map("updated_at")
-  chapters    Chapter[]
+  chapters        Chapter[]
+  chapterMemories ChapterMemory[]
+  arcMemories     ArcMemory[]
+  novelMemory     NovelMemory?
 
   @@map("novels")
 }
@@ -55,4 +58,57 @@ model Chapter {
 
   @@unique([novelId, number])
   @@map("chapters")
+}
+
+model ChapterMemory {
+  id            String   @id @default(cuid())
+  novelId       String   @map("novel_id")
+  chapterNumber Int      @map("chapter_number")
+  summary       String   @db.Text
+  characters    String   @db.Text
+  threads       String   @db.Text
+  foreshadowing String   @db.Text
+  locations     String   @db.Text
+  events        String   @db.Text
+  emotions      String   @db.Text
+  resources     String   @db.Text
+  relationships String   @db.Text
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt      @map("updated_at")
+  novel         Novel    @relation(fields: [novelId], references: [id])
+
+  @@unique([novelId, chapterNumber])
+  @@map("chapter_memories")
+}
+
+model ArcMemory {
+  id            String   @id @default(cuid())
+  novelId       String   @map("novel_id")
+  arcStart      Int      @map("arc_start")
+  arcEnd        Int      @map("arc_end")
+  summary       String   @db.Text
+  keyEvents     String   @db.Text
+  activeThreads String   @db.Text
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt      @map("updated_at")
+  novel         Novel    @relation(fields: [novelId], references: [id])
+
+  @@unique([novelId, arcStart])
+  @@map("arc_memories")
+}
+
+model NovelMemory {
+  id              String   @id @default(cuid())
+  novelId         String   @unique @map("novel_id")
+  characters      String   @db.Text
+  worldRules      String   @db.Text
+  majorEvents     String   @db.Text
+  openThreads     String   @db.Text
+  foreshadowing   String   @db.Text
+  lastChapterNum  Int      @default(0) @map("last_chapter_num")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt      @map("updated_at")
+  novel           Novel    @relation(fields: [novelId], references: [id])
+
+  @@map("novel_memories")
 }

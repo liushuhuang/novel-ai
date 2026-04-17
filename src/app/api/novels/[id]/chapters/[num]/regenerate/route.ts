@@ -4,7 +4,10 @@ import { decrypt } from '@/lib/crypto'
 import { createAIProvider } from '@/lib/ai/factory'
 import { getSystemPrompt } from '@/lib/prompts/system'
 import { getChapterPrompt } from '@/lib/prompts/chapter'
+import { assembleMemoryContext } from '@/lib/memory/assemble'
+import { runMemoryExtraction } from '@/lib/memory/extract'
 import type { ChatMessage } from '@/types/ai'
+import type { MemoryContext, ChapterMemoryData, ArcMemoryData } from '@/lib/memory/types'
 import { checkRateLimit } from '@/lib/rate-limit'
 
 export async function POST(
@@ -42,7 +45,72 @@ export async function POST(
     customNote: novel.customNote ?? undefined,
   }
 
-  const chapterPrompt = getChapterPrompt(config, chapterNumber)
+  // Load memory context for chapters > 1
+  let memoryContext: MemoryContext | undefined
+  if (chapterNumber > 1) {
+    const [chapterMems, arcMems, novelMem, recentChapters] = await Promise.all([
+      prisma.chapterMemory.findMany({
+        where: { novelId: id },
+        orderBy: { chapterNumber: 'asc' },
+      }),
+      prisma.arcMemory.findMany({
+        where: { novelId: id },
+        orderBy: { arcStart: 'asc' },
+      }),
+      prisma.novelMemory.findUnique({
+        where: { novelId: id },
+      }),
+      prisma.chapter.findMany({
+        where: { novelId: id, number: { gte: chapterNumber - 3, lt: chapterNumber } },
+        select: { number: true, content: true },
+      }),
+    ])
+
+    const chapterMemoryMap = new Map<number, ChapterMemoryData>()
+    for (const cm of chapterMems) {
+      chapterMemoryMap.set(cm.chapterNumber, {
+        summary: cm.summary,
+        characters: JSON.parse(cm.characters),
+        threads: JSON.parse(cm.threads),
+        foreshadowing: JSON.parse(cm.foreshadowing),
+        locations: JSON.parse(cm.locations),
+        events: JSON.parse(cm.events),
+        emotions: JSON.parse(cm.emotions),
+        resources: JSON.parse(cm.resources),
+        relationships: JSON.parse(cm.relationships),
+      })
+    }
+
+    const arcMemories: ArcMemoryData[] = arcMems.map(a => ({
+      summary: a.summary,
+      keyEvents: JSON.parse(a.keyEvents),
+      activeThreads: JSON.parse(a.activeThreads),
+    }))
+
+    const novelMemoryData = novelMem ? {
+      characters: JSON.parse(novelMem.characters),
+      worldRules: JSON.parse(novelMem.worldRules),
+      majorEvents: JSON.parse(novelMem.majorEvents),
+      openThreads: JSON.parse(novelMem.openThreads),
+      foreshadowing: JSON.parse(novelMem.foreshadowing),
+      lastChapterNum: novelMem.lastChapterNum,
+    } : null
+
+    const recentChapterContents = new Map<number, string>()
+    for (const ch of recentChapters) {
+      recentChapterContents.set(ch.number, ch.content)
+    }
+
+    memoryContext = assembleMemoryContext(
+      chapterNumber,
+      chapterMemoryMap,
+      arcMemories,
+      novelMemoryData,
+      recentChapterContents,
+    )
+  }
+
+  const chapterPrompt = getChapterPrompt(config, chapterNumber, memoryContext)
 
   const messages: ChatMessage[] = [
     { role: 'system', content: getSystemPrompt() },
@@ -90,6 +158,11 @@ export async function POST(
           where: { novelId_number: { novelId: id, number: chapterNumber } },
           update: { title: chapterTitle, content, wordCount },
           create: { novelId: id, number: chapterNumber, title: chapterTitle, content, wordCount },
+        })
+
+        // Fire-and-forget background memory extraction
+        runMemoryExtraction(id, chapterNumber).catch(err => {
+          console.error('Background memory extraction failed:', err)
         })
 
         const done = JSON.stringify({
