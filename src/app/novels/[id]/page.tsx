@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, use } from 'react'
-import { RefreshCw, Play, Settings } from 'lucide-react'
+import { RefreshCw, Play, Settings, Copy, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ChapterList } from '@/components/novels/chapter-list'
 import { StreamingText } from '@/components/novels/streaming-text'
@@ -40,6 +40,7 @@ export default function NovelReadPage({ params }: { params: Promise<{ id: string
   const [regenerating, setRegenerating] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [editOpen, setEditOpen] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   const fetchNovel = useCallback(async () => {
     try {
@@ -75,6 +76,13 @@ export default function NovelReadPage({ params }: { params: Promise<{ id: string
     setIsGenerating(false)
     setRegenerating(null)
     fetchNovel()
+  }
+
+  const handleCopyChapter = async () => {
+    if (!currentChapter) return
+    await navigator.clipboard.writeText(`第${currentChapter.number}章：${currentChapter.title}\n\n${currentChapter.content}`)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
   }
 
   if (loading || !novel) return <div>加载中...</div>
@@ -151,9 +159,20 @@ export default function NovelReadPage({ params }: { params: Promise<{ id: string
 
           {currentChapter && !isGenerating && !regenerating && (
             <div>
-              <h2 className="text-lg font-medium mb-4">
-                第{currentChapter.number}章：{currentChapter.title}
-              </h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-medium">
+                  第{currentChapter.number}章：{currentChapter.title}
+                </h2>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleCopyChapter}
+                  disabled={copied}
+                >
+                  {copied ? <Check className="h-3 w-3 mr-1" /> : <Copy className="h-3 w-3 mr-1" />}
+                  {copied ? '已复制' : '复制全部'}
+                </Button>
+              </div>
               <div className="font-serif leading-relaxed whitespace-pre-wrap text-base">
                 {currentChapter.content}
               </div>
