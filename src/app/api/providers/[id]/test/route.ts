@@ -14,10 +14,20 @@ export async function POST(
     return NextResponse.json({ error: 'Provider not found' }, { status: 404 })
   }
 
+  let apiKey: string
+  try {
+    apiKey = decrypt(provider.apiKey)
+  } catch (e) {
+    return NextResponse.json({
+      success: false,
+      error: 'API Key 解密失败，请重新添加供应商',
+    })
+  }
+
   try {
     const aiProvider = createAIProvider({
       baseUrl: provider.baseUrl,
-      apiKey: decrypt(provider.apiKey),
+      apiKey,
       model: provider.model,
       type: provider.type,
     })
@@ -25,9 +35,14 @@ export async function POST(
     const success = await aiProvider.testConnection()
     return NextResponse.json({ success })
   } catch (error) {
-    return NextResponse.json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Connection test failed',
+    const message = error instanceof Error ? error.message : 'Connection test failed'
+    console.error('Provider test failed:', {
+      providerId: id,
+      type: provider.type,
+      baseUrl: provider.baseUrl,
+      model: provider.model,
+      error: message,
     })
+    return NextResponse.json({ success: false, error: message })
   }
 }

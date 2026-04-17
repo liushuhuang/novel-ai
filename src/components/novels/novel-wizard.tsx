@@ -97,7 +97,10 @@ export function NovelWizard() {
 
   useEffect(() => {
     fetch("/api/providers")
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error(`API error: ${res.status}`)
+        return res.json()
+      })
       .then((data: Provider[]) => {
         setProviders(data)
         setProvidersLoading(false)

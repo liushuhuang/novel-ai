@@ -35,15 +35,11 @@ export class ClaudeProvider implements AIProvider {
   }
 
   async testConnection(): Promise<boolean> {
-    try {
-      await this.client.messages.create({
-        model: this.model,
-        max_tokens: 5,
-        messages: [{ role: 'user', content: 'Say OK' }],
-      })
-      return true
-    } catch {
-      return false
-    }
+    await this.client.messages.create({
+      model: this.model,
+      max_tokens: 5,
+      messages: [{ role: 'user', content: 'Say OK' }],
+    })
+    return true
   }
 }

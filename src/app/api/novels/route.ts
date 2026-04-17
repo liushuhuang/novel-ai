@@ -2,14 +2,19 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 
 export async function GET() {
-  const novels = await prisma.novel.findMany({
-    orderBy: { createdAt: 'desc' },
-    include: {
-      provider: { select: { name: true } },
-      _count: { select: { chapters: true } },
-    },
-  })
-  return NextResponse.json(novels)
+  try {
+    const novels = await prisma.novel.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        provider: { select: { name: true } },
+        _count: { select: { chapters: true } },
+      },
+    })
+    return NextResponse.json(novels)
+  } catch (error) {
+    console.error('Failed to fetch novels:', error)
+    return NextResponse.json([], { status: 200 })
+  }
 }
 
 export async function POST(request: Request) {

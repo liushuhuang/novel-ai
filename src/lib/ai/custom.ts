@@ -61,22 +61,22 @@ export class CustomProvider implements AIProvider {
   }
 
   async testConnection(): Promise<boolean> {
-    try {
-      const response = await fetch(`${this.baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.apiKey}`,
-        },
-        body: JSON.stringify({
-          model: this.model,
-          messages: [{ role: 'user', content: 'Say OK' }],
-          max_tokens: 5,
-        }),
-      })
-      return response.ok
-    } catch {
-      return false
+    const response = await fetch(`${this.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: this.model,
+        messages: [{ role: 'user', content: 'Say OK' }],
+        max_tokens: 5,
+      }),
+    })
+    if (!response.ok) {
+      const body = await response.text().catch(() => '')
+      throw new Error(`HTTP ${response.status}: ${body || response.statusText}`)
     }
+    return true
   }
 }

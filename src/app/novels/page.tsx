@@ -22,8 +22,16 @@ export default function NovelsPage() {
 
   useEffect(() => {
     fetch('/api/novels')
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error(`API error: ${res.status}`)
+        return res.json()
+      })
       .then(data => { setNovels(data); setLoading(false) })
+      .catch(err => {
+        console.error('Failed to fetch novels:', err)
+        setNovels([])
+        setLoading(false)
+      })
   }, [])
 
   if (loading) return <div>加载中...</div>

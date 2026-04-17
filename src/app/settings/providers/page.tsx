@@ -91,16 +91,26 @@ export default function ProvidersPage() {
   }
 
   async function handleTest(provider: Provider): Promise<boolean> {
-    const res = await fetch(`/api/providers/${provider.id}/test`, {
-      method: "POST",
-    })
-    const data = await res.json()
-    if (data.success) {
-      toast.success("连接成功")
-    } else {
-      toast.error(data.error ?? "连接失败")
+    try {
+      const res = await fetch(`/api/providers/${provider.id}/test`, {
+        method: "POST",
+      })
+      if (!res.ok) {
+        toast.error(`请求失败: ${res.status}`)
+        return false
+      }
+      const data = await res.json()
+      if (data.success) {
+        toast.success("连接成功")
+      } else {
+        toast.error(data.error ?? "连接失败")
+      }
+      return data.success
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "网络错误"
+      toast.error(`测试请求失败: ${msg}`)
+      return false
     }
-    return data.success
   }
 
   return (

@@ -68,31 +68,35 @@ export async function POST(
 
     const chapterMemoryMap = new Map<number, ChapterMemoryData>()
     for (const cm of chapterMems) {
-      chapterMemoryMap.set(cm.chapterNumber, {
-        summary: cm.summary,
-        characters: JSON.parse(cm.characters),
-        threads: JSON.parse(cm.threads),
-        foreshadowing: JSON.parse(cm.foreshadowing),
-        locations: JSON.parse(cm.locations),
-        events: JSON.parse(cm.events),
-        emotions: JSON.parse(cm.emotions),
-        resources: JSON.parse(cm.resources),
-        relationships: JSON.parse(cm.relationships),
-      })
+      try {
+        chapterMemoryMap.set(cm.chapterNumber, {
+          summary: cm.summary,
+          characters: JSON.parse(cm.characters || '[]'),
+          threads: JSON.parse(cm.threads || '[]'),
+          foreshadowing: JSON.parse(cm.foreshadowing || '[]'),
+          locations: JSON.parse(cm.locations || '[]'),
+          events: JSON.parse(cm.events || '[]'),
+          emotions: JSON.parse(cm.emotions || '[]'),
+          resources: JSON.parse(cm.resources || '[]'),
+          relationships: JSON.parse(cm.relationships || '[]'),
+        })
+      } catch {
+        // Skip malformed memory records
+      }
     }
 
     const arcMemories: ArcMemoryData[] = arcMems.map(a => ({
       summary: a.summary,
-      keyEvents: JSON.parse(a.keyEvents),
-      activeThreads: JSON.parse(a.activeThreads),
+      keyEvents: JSON.parse(a.keyEvents || '[]'),
+      activeThreads: JSON.parse(a.activeThreads || '[]'),
     }))
 
     const novelMemoryData = novelMem ? {
-      characters: JSON.parse(novelMem.characters),
-      worldRules: JSON.parse(novelMem.worldRules),
-      majorEvents: JSON.parse(novelMem.majorEvents),
-      openThreads: JSON.parse(novelMem.openThreads),
-      foreshadowing: JSON.parse(novelMem.foreshadowing),
+      characters: JSON.parse(novelMem.characters || '[]'),
+      worldRules: JSON.parse(novelMem.worldRules || '[]'),
+      majorEvents: JSON.parse(novelMem.majorEvents || '[]'),
+      openThreads: JSON.parse(novelMem.openThreads || '[]'),
+      foreshadowing: JSON.parse(novelMem.foreshadowing || '[]'),
       lastChapterNum: novelMem.lastChapterNum,
     } : null
 

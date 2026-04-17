@@ -32,13 +32,19 @@ export default function NovelReadPage({ params }: { params: Promise<{ id: string
   const [loading, setLoading] = useState(true)
 
   const fetchNovel = useCallback(async () => {
-    const res = await fetch(`/api/novels/${id}`)
-    const data = await res.json()
-    setNovel(data)
-    if (!activeChapter && data.chapters.length > 0) {
-      setActiveChapter(data.chapters[data.chapters.length - 1].number)
+    try {
+      const res = await fetch(`/api/novels/${id}`)
+      if (!res.ok) throw new Error(`API error: ${res.status}`)
+      const data = await res.json()
+      setNovel(data)
+      if (!activeChapter && data.chapters.length > 0) {
+        setActiveChapter(data.chapters[data.chapters.length - 1].number)
+      }
+    } catch (err) {
+      console.error('Failed to fetch novel:', err)
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }, [id, activeChapter])
 
   useEffect(() => {

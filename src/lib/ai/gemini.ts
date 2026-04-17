@@ -32,12 +32,8 @@ export class GeminiProvider implements AIProvider {
   }
 
   async testConnection(): Promise<boolean> {
-    try {
-      const genModel = this.client.getGenerativeModel({ model: this.model })
-      await genModel.generateContent('Say OK')
-      return true
-    } catch {
-      return false
-    }
+    const genModel = this.client.getGenerativeModel({ model: this.model })
+    await genModel.generateContent('Say OK')
+    return true
   }
 }

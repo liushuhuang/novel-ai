@@ -6,7 +6,14 @@ export class OpenAICompatibleProvider implements AIProvider {
   private model: string
 
   constructor(baseUrl: string, apiKey: string, model: string) {
-    this.client = new OpenAI({ apiKey, baseURL: baseUrl })
+    this.client = new OpenAI({
+      apiKey,
+      baseURL: baseUrl,
+      defaultHeaders: {
+        'User-Agent': 'novel-ai/1.0',
+      },
+      defaultQuery: {},
+    })
     this.model = model
   }
 
@@ -23,15 +30,11 @@ export class OpenAICompatibleProvider implements AIProvider {
   }
 
   async testConnection(): Promise<boolean> {
-    try {
-      await this.client.chat.completions.create({
-        model: this.model,
-        messages: [{ role: 'user', content: 'Say OK' }],
-        max_tokens: 5,
-      })
-      return true
-    } catch {
-      return false
-    }
+    await this.client.chat.completions.create({
+      model: this.model,
+      messages: [{ role: 'user', content: 'Say OK' }],
+      max_tokens: 5,
+    })
+    return true
   }
 }

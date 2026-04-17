@@ -31,8 +31,20 @@ export function StreamingText({ novelId, onDone, regenerate }: StreamingTextProp
     try {
       const res = await fetch(url, { method: 'POST' })
       if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error ?? 'Generation failed')
+        let errorMessage = `HTTP ${res.status}`
+        try {
+          const contentType = res.headers.get('content-type')
+          if (contentType?.includes('application/json')) {
+            const data = await res.json()
+            errorMessage = data.error ?? errorMessage
+          } else {
+            const text = await res.text()
+            errorMessage = text.slice(0, 200) || errorMessage
+          }
+        } catch {
+          // ignore parse errors
+        }
+        throw new Error(errorMessage)
       }
 
       const reader = res.body?.getReader()
