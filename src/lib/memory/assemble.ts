@@ -56,6 +56,12 @@ export function assembleMemoryContext(
   const prevMemory = chapterMemories.get(chapterNumber - 1)
   const previousChapterSummary = prevMemory?.summary ?? ''
 
+  // 上一章关键事件
+  let previousChapterEvents = ''
+  if (prevMemory && prevMemory.events.length > 0) {
+    previousChapterEvents = prevMemory.events.map(e => `- ${e}`).join('\n')
+  }
+
   let recentEndings = ''
   if (recentChapterContents && recentChapterContents.size > 0) {
     const endings: string[] = []
@@ -120,20 +126,21 @@ export function assembleMemoryContext(
     arcSummary = arcMemories[arcIndex].summary
   }
 
-  // 生成叙事锚点：上一章结尾段落
+  // 生成叙事锚点：上一章结尾内容（1500 字，包含关键情节）
   let narrativeAnchor: string | undefined
   if (recentChapterContents && recentChapterContents.size > 0) {
     const lastChapterContent = recentChapterContents.get(chapterNumber - 1)
     if (lastChapterContent) {
-      const lastPara = extractLastParagraph(lastChapterContent)
-      if (lastPara) {
-        narrativeAnchor = `上一章（第${chapterNumber - 1}章）结尾场景：${lastPara}`
+      const ending = extractLastNChars(lastChapterContent, 1500)
+      if (ending) {
+        narrativeAnchor = `上一章（第${chapterNumber - 1}章）结尾内容：\n${ending}`
       }
     }
   }
 
   return {
     previousChapterSummary,
+    previousChapterEvents,
     recentEndings,
     arcSummary,
     characters,
@@ -149,4 +156,14 @@ function extractLastParagraph(content: string): string {
   const paragraphs = content.split('\n').map(l => l.trim()).filter(l => l.length > 10)
   const last = paragraphs[paragraphs.length - 1] ?? ''
   return last.length > 80 ? last.slice(0, 77) + '...' : last
+}
+
+/** 提取正文末尾 N 个字符（从完整段落边界截断） */
+function extractLastNChars(content: string, n: number): string {
+  if (content.length <= n) return content.trim()
+  const tail = content.slice(-n)
+  // 找到第一个换行，跳过不完整的段落
+  const firstNewline = tail.indexOf('\n')
+  const trimmed = firstNewline > 0 ? tail.slice(firstNewline + 1) : tail
+  return trimmed.trim()
 }

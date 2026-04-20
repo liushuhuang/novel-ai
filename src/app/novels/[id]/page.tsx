@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, use } from 'react'
-import { RefreshCw, Play, Settings, Copy, Check } from 'lucide-react'
+import { RefreshCw, Play, Settings, Copy, Check, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ChapterList } from '@/components/novels/chapter-list'
 import { StreamingText } from '@/components/novels/streaming-text'
@@ -85,6 +85,21 @@ export default function NovelReadPage({ params }: { params: Promise<{ id: string
     setTimeout(() => setCopied(false), 2000)
   }
 
+  const handleDeleteChapter = async () => {
+    if (!currentChapter) return
+    if (!window.confirm(`确定删除第${currentChapter.number}章？此操作不可撤销。`)) return
+    try {
+      const res = await fetch(`/api/novels/${id}/chapters/${currentChapter.number}`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) throw new Error('删除失败')
+      setActiveChapter(null)
+      fetchNovel()
+    } catch (err) {
+      console.error('Failed to delete chapter:', err)
+    }
+  }
+
   if (loading || !novel) return <div>加载中...</div>
 
   const currentChapter = activeChapter
@@ -163,15 +178,26 @@ export default function NovelReadPage({ params }: { params: Promise<{ id: string
                 <h2 className="text-lg font-medium">
                   第{currentChapter.number}章：{currentChapter.title}
                 </h2>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleCopyChapter}
-                  disabled={copied}
-                >
-                  {copied ? <Check className="h-3 w-3 mr-1" /> : <Copy className="h-3 w-3 mr-1" />}
-                  {copied ? '已复制' : '复制全部'}
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCopyChapter}
+                    disabled={copied}
+                  >
+                    {copied ? <Check className="h-3 w-3 mr-1" /> : <Copy className="h-3 w-3 mr-1" />}
+                    {copied ? '已复制' : '复制全部'}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    onClick={handleDeleteChapter}
+                  >
+                    <Trash2 className="h-3 w-3 mr-1" />
+                    删除
+                  </Button>
+                </div>
               </div>
               <div className="font-serif leading-relaxed whitespace-pre-wrap text-base">
                 {currentChapter.content}

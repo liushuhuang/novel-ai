@@ -86,6 +86,8 @@ export interface UsedElements {
 
 export interface MemoryContext {
   previousChapterSummary: string
+  /** 上一章关键事件列表 */
+  previousChapterEvents: string
   recentEndings: string
   arcSummary: string
   characters: string

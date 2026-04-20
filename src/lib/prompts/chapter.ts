@@ -92,7 +92,7 @@ export function getChapterPrompt(
   } else if (memory) {
     prompt += `\n\n【上下文信息——请务必基于以下信息保持连贯性】`
 
-    // 叙事锚点：确保章节衔接
+    // 叙事锚点：上一章结尾内容（1500 字），确保衔接不断裂
     if (memory.narrativeAnchor) {
       prompt += `\n\n### 叙事衔接\n${memory.narrativeAnchor}`
       prompt += `\n请从上述场景自然衔接，不要出现时间线断裂或场景跳跃。`
@@ -100,6 +100,10 @@ export function getChapterPrompt(
 
     if (memory.previousChapterSummary) {
       prompt += `\n\n上一章概要：\n${memory.previousChapterSummary}`
+    }
+
+    if (memory.previousChapterEvents) {
+      prompt += `\n\n上一章关键事件：\n${memory.previousChapterEvents}`
     }
 
     if (memory.recentEndings) {
