@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getTitlePrompt } from '@/lib/prompts/title'
 import { runMemoryExtraction } from '@/lib/memory/extract'
-import { loadGenerationContext, buildMessages, createChapterStream, parseChapterOutput } from '@/lib/generation/pipeline'
+import { loadGenerationContext, createAgentChapterStream, parseChapterOutput } from '@/lib/generation/pipeline'
 import { auditChapter } from '@/lib/planning/audit'
 import { checkRateLimit } from '@/lib/rate-limit'
 import type { ChatMessage } from '@/types/ai'
@@ -40,9 +40,14 @@ export async function POST(
     nextChapterNumber,
   )
 
-  const messages = buildMessages(config, nextChapterNumber, memoryContext, chapterIntent)
-
-  const { stream: aiStream, getFullContent } = createChapterStream(provider, messages)
+  const { stream: aiStream, getFullContent } = createAgentChapterStream(
+    provider,
+    config,
+    nextChapterNumber,
+    id,
+    memoryContext,
+    chapterIntent,
+  )
 
   const encoder = new TextEncoder()
 

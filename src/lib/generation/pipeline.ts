@@ -5,6 +5,10 @@ import { getSystemPrompt } from '@/lib/prompts/system'
 import { getChapterPrompt } from '@/lib/prompts/chapter'
 import { assembleMemoryContext } from '@/lib/memory/assemble'
 import { planChapter } from '@/lib/planning/planner'
+import { runAgentLoop } from '@/lib/agent/loop'
+import { AGENT_TOOLS } from '@/lib/agent/tools'
+import { buildAgentSystemPrompt } from '@/lib/agent/prompt'
+import type { AgentLoopConfig } from '@/lib/agent/types'
 import type { ChatMessage, AIProvider } from '@/types/ai'
 import type { MemoryContext, ChapterMemoryData, ArcMemoryData } from '@/lib/memory/types'
 import type { ChapterIntent } from '@/lib/planning/types'
@@ -209,6 +213,76 @@ export function createChapterStream(
     stream,
     getFullContent: () => fullContent,
   }
+}
+
+/**
+ * 使用 agent loop 生成章节（替代 createChapterStream）
+ * 返回 ReadableStream（SSE 格式）+ 完成后的章节内容
+ */
+export function createAgentChapterStream(
+  provider: AIProvider,
+  config: NovelConfig,
+  chapterNumber: number,
+  novelId: string,
+  memoryContext?: MemoryContext,
+  chapterIntent?: ChapterIntent,
+): {
+  stream: ReadableStream
+  getFullContent: () => string
+} {
+  const encoder = new TextEncoder()
+  let fullContent = ''
+
+  const systemPrompt = buildAgentSystemPrompt(
+    config,
+    chapterNumber,
+    memoryContext,
+    chapterIntent,
+  )
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      try {
+        const agentConfig: AgentLoopConfig = {
+          maxTurns: 10,
+          onStreamText: (text) => {
+            fullContent += text
+            const data = JSON.stringify({ type: 'chunk', content: text })
+            controller.enqueue(encoder.encode(`data: ${data}\n\n`))
+          },
+          onToolCall: (name) => {
+            const data = JSON.stringify({ type: 'tool_call', name })
+            controller.enqueue(encoder.encode(`data: ${data}\n\n`))
+          },
+          onToolResult: () => {
+            // Tool results are not sent to the frontend
+          },
+        }
+
+        const result = await runAgentLoop(
+          provider,
+          systemPrompt,
+          AGENT_TOOLS,
+          { novelId, chapterNumber },
+          agentConfig,
+        )
+
+        if (result.usedWriteTool) {
+          fullContent = result.finalContent
+        }
+      } catch (error) {
+        const errorData = JSON.stringify({
+          type: 'error',
+          message: error instanceof Error ? error.message : 'Agent loop failed',
+        })
+        controller.enqueue(encoder.encode(`data: ${errorData}\n\n`))
+      } finally {
+        controller.close()
+      }
+    },
+  })
+
+  return { stream, getFullContent: () => fullContent }
 }
 
 /** 解析章节标题和内容 */

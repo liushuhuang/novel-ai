@@ -1,6 +1,6 @@
 # Novel AI
 
-AI 驱动的长篇小说自动生成平台，支持多供应商、流式生成、3 层记忆系统。
+AI 驱动的长篇小说自动生成平台，支持多供应商、Agent Loop、3 层记忆系统。
 
 ## 技术栈
 
@@ -31,7 +31,8 @@ novel-ai/
 │   │   │   │   │   ├── generate/route.ts  # POST 生成下一章 (SSE)
 │   │   │   │   │   └── chapters/
 │   │   │   │   │       └── [num]/
-│   │   │   │   │           └── regenerate/route.ts  # POST 重新生成
+│   │   │   │   │           ├── route.ts            # DELETE 删除章节
+│   │   │   │   │           └── regenerate/route.ts # POST 重新生成
 │   │   │   │   └── route.ts      # GET 列表 / POST 创建
 │   │   │   └── providers/        # AI 供应商 CRUD + 测试
 │   │   ├── novels/               # 小说列表 / 创建向导 / 阅读页
@@ -43,6 +44,14 @@ novel-ai/
 │   │   └── providers/            # 供应商相关组件 (form, card)
 │   ├── lib/
 │   │   ├── ai/                   # AI 供应商适配器 (openai/claude/gemini/custom)
+│   │   ├── agent/                # Agent Loop 系统
+│   │   │   ├── types.ts          # ToolDefinition, StreamEvent, AgentLoopConfig
+│   │   │   ├── tools.ts          # 4 个工具定义 (read_memory, read_chapter, get_writing_progress, write_chapter)
+│   │   │   ├── executor.ts       # 工具执行逻辑
+│   │   │   ├── loop.ts           # 核心 agent 循环 (maxTurns=10)
+│   │   │   └── prompt.ts         # Agent system prompt 构建
+│   │   ├── generation/           # 生成管线
+│   │   │   └── pipeline.ts       # 上下文加载 + Agent/经典流式生成
 │   │   ├── memory/               # 3 层记忆系统
 │   │   │   ├── types.ts          # 核心类型定义
 │   │   │   ├── chapter.ts        # Observer 提示词 — AI 提取章节事实
@@ -50,6 +59,11 @@ novel-ai/
 │   │   │   ├── arc.ts            # 篇章记忆计算 (每 10 章)
 │   │   │   ├── novel.ts          # 全局记忆聚合
 │   │   │   └── assemble.ts       # 记忆上下文组装 (3000 token 预算)
+│   │   ├── planning/             # 章节规划
+│   │   │   ├── types.ts          # ChapterIntent, CadenceAnalysis
+│   │   │   ├── planner.ts        # 纯规则章节意图规划
+│   │   │   ├── cadence.ts        # 节奏分析器
+│   │   │   └── audit.ts          # 8 维度一致性审计
 │   │   ├── prompts/              # 提示词系统
 │   │   │   ├── system.ts         # 系统提示词 (21 条写作铁律)
 │   │   │   ├── chapter.ts        # 章节生成提示词
@@ -78,52 +92,65 @@ Novel (1) ──→ (1) NovelMemory
 | `Provider` | AI 供应商配置（名称、类型、API 地址、密钥、模型） |
 | `Novel` | 小说元数据（标题、类型、风格、视角、背景等） |
 | `Chapter` | 章节内容（编号、标题、正文、字数） |
-| `ChapterMemory` | 章节记忆（9 维度事实提取：角色、剧情线、伏笔、地点、事件、情绪、资源、关系、回收伏笔） |
+| `ChapterMemory` | 章节记忆（12 维度事实提取：角色、剧情线、伏笔、地点、事件、情绪、资源、关系、回收伏笔、章节类型、情绪基调） |
 | `ArcMemory` | 篇章记忆（每 10 章汇总：概要、关键事件、活跃剧情线） |
-| `NovelMemory` | 全局记忆（角色表、世界观规则、重大事件、未完结剧情线、伏笔追踪） |
+| `NovelMemory` | 全局记忆（角色表、世界观规则、重大事件、未完结剧情线、伏笔追踪、已使用元素） |
 
 ## 核心流程
 
+### Agent Loop 模式（当前）
+
 ```
-用户创建小说 (选择供应商 + 设置参数)
+用户点击"生成第 N 章"
         │
         ▼
-  ┌─ 生成第 N 章 ──────────────────────────────────┐
-  │                                                  │
-  │  1. 加载记忆上下文 (N > 1 时)                     │
-  │     ├── ChapterMemory (全部章节)                  │
-  │     ├── ArcMemory (按篇章)                        │
-  │     ├── NovelMemory (全局)                        │
-  │     └── 近 3 章原文 (防重复结尾)                   │
-  │                                                  │
-  │  2. 组装提示词                                    │
-  │     ├── System Prompt (21 条铁律)                 │
-  │     └── Chapter Prompt                            │
-  │         ├── 小说设定 (类型/风格/背景等)             │
-  │         ├── 类型专属写作规范                       │
-  │         ├── 反 AI 味道对照表                       │
-  │         ├── 记忆上下文 (3000 token 预算)           │
-  │         └── 格式要求                              │
-  │                                                  │
-  │  3. 调用 AI 供应商接口 (SSE 流式返回)              │
-  │                                                  │
-  │  4. 保存章节到数据库                              │
-  │                                                  │
-  │  5. 后台记忆提取 (fire-and-forget)                 │
-  │     ├── Observer AI → 9 维度事实 JSON             │
-  │     ├── 存入 ChapterMemory                        │
-  │     └── 每 5-10 章重新计算 Arc + Novel 记忆       │
-  │                                                  │
-  └──────────────────────────────────────────────────┘
+┌─ Agent Loop ─────────────────────────────────────────┐
+│                                                       │
+│  System Prompt = 写作铁律 + 小说设定 + 类型规范        │
+│              + 反 AI 对照表 + 章节意图约束              │
+│              + 记忆上下文预注入 + 工具使用指引           │
+│                                                       │
+│  while (turn < maxTurns):                             │
+│    │                                                  │
+│    ├── LLM 输出 → 流式文本 (SSE → 前端)               │
+│    │                                                  │
+│    ├── LLM 输出 → tool_call                           │
+│    │     ├── read_memory    → 返回角色/剧情线/伏笔     │
+│    │     ├── read_chapter   → 返回指定章节全文          │
+│    │     ├── get_writing_progress → 返回进度摘要       │
+│    │     └── write_chapter  → 落笔保存 (验证格式)      │
+│    │                                                  │
+│    └── 工具结果 → 追加到消息历史 → 下一轮              │
+│                                                       │
+│  最终：write_chapter 的内容保存到数据库                │
+│                                                       │
+└───────────────────────────────────────────────────────┘
+        │
+        ▼
+  5. 后台记忆提取 (fire-and-forget)
+     ├── Observer AI → 12 维度事实 JSON
+     ├── 存入 ChapterMemory
+     └── 每 5-10 章重新计算 Arc + Novel 记忆
 ```
+
+### 4 个 Agent 工具
+
+| 工具 | 说明 |
+|------|------|
+| `read_memory` | 读取角色状态、剧情线、伏笔池、上一章结尾等 |
+| `read_chapter` | 读取任意章节的完整内容 |
+| `get_writing_progress` | 获取章节数、最新章节号、各章概要 |
+| `write_chapter` | 保存创作内容（验证格式后暂存，loop 结束后写入 DB） |
+
+Agent Loop 最多 10 轮。LLM 自主决定何时读取记忆、何时回顾前文、何时落笔写作。
 
 ### 3 层记忆系统
 
 ```
 第 1 层: ChapterMemory (AI 提取)
-  每章生成后，Observer AI 从正文中提取 9 个维度的结构化事实
+  每章生成后，Observer AI 从正文中提取 12 个维度的结构化事实
   角色行为 / 位置变化 / 资源变化 / 关系变化 / 情绪变化 /
-  信息流动 / 剧情线索 / 伏笔回收 / 身体状态
+  信息流动 / 剧情线索 / 伏笔回收 / 身体状态 / 章节类型 / 情绪基调
 
         │  每 5-10 章
         ▼
@@ -137,32 +164,14 @@ Novel (1) ──→ (1) NovelMemory
   伏笔支持压力评分 — 越老的未回收伏笔优先级越高
 ```
 
-### 生成提示词架构
+### 章节规划系统
 
-```
-System Prompt
-├── 21 条写作铁律
-│   ├── 禁止真实公司/国家/人物名称 (架空世界)
-│   ├── 禁止替读者下结论
-│   ├── 禁止"不是A而是B"句式
-│   ├── 禁止破折号
-│   ├── 限制惊讶词频率 (每 3000 字 ≤ 1 次)
-│   └── ...更多反 AI 规则
-│
-Chapter Prompt
-├── 小说设定 (类型/频道/篇幅/风格/视角/背景)
-├── 类型专属写作规范 (8 种类型各有不同要求)
-├── 反 AI 味道对照表 (反例→正例)
-├── 记忆上下文
-│   ├── 上一章概要
-│   ├── 近期章节结尾
-│   ├── 篇章概要
-│   ├── 人物状态
-│   ├── 未完结剧情线
-│   ├── 待回收伏笔 (含压力标记)
-│   └── 近期已回收伏笔
-└── 格式要求 + 强调限制
-```
+生成前自动执行纯规则规划（零 LLM 成本）：
+
+- **节奏分析**：检测场景类型/情绪基调连续重复，生成 mustAvoid 约束
+- **章节意图**：从 openThreads 推导 goal，从角色状态推导 mustKeep
+- **伏笔议程**：标记超期未处理伏笔（staleDebt），优先回收
+- **一致性审计**：生成后后台 8 维度审查（连贯性、角色、重复、伏笔、设定、节奏、信息越界、套话密度）
 
 ## 从 0 开始运行
 
@@ -241,7 +250,7 @@ npm start
 
 ## API 供应商
 
-支持 4 种供应商类型：
+支持 4 种供应商类型，均支持文本流式生成和 Tool Calling：
 
 | 类型 | 说明 | SDK |
 |------|------|-----|
