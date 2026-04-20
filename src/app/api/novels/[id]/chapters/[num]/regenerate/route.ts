@@ -1,18 +1,12 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { decrypt } from '@/lib/crypto'
-import { createAIProvider } from '@/lib/ai/factory'
-import { getSystemPrompt } from '@/lib/prompts/system'
-import { getChapterPrompt } from '@/lib/prompts/chapter'
-import { assembleMemoryContext } from '@/lib/memory/assemble'
 import { runMemoryExtraction } from '@/lib/memory/extract'
-import type { ChatMessage } from '@/types/ai'
-import type { MemoryContext, ChapterMemoryData, ArcMemoryData } from '@/lib/memory/types'
+import { loadGenerationContext, buildMessages, createChapterStream, parseChapterOutput } from '@/lib/generation/pipeline'
 import { checkRateLimit } from '@/lib/rate-limit'
 
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ id: string; num: string }> }
+  { params }: { params: Promise<{ id: string; num: string }> },
 ) {
   const forwarded = request.headers.get('x-forwarded-for')
   const ip = forwarded?.split(',')[0] ?? 'unknown'
@@ -33,136 +27,39 @@ export async function POST(
     return NextResponse.json({ error: 'Novel not found' }, { status: 404 })
   }
 
-  const config = {
-    genre: novel.genre,
-    target: novel.target,
-    wordCount: novel.wordCount,
-    style: novel.style,
-    pov: novel.pov,
-    background: novel.background,
-    protagonist: novel.protagonist ?? undefined,
-    conflict: novel.conflict ?? undefined,
-    customNote: novel.customNote ?? undefined,
-  }
+  const { config, provider, memoryContext, chapterIntent } = await loadGenerationContext(
+    id,
+    chapterNumber,
+  )
 
-  // Load memory context for chapters > 1
-  let memoryContext: MemoryContext | undefined
-  if (chapterNumber > 1) {
-    const [chapterMems, arcMems, novelMem, recentChapters] = await Promise.all([
-      prisma.chapterMemory.findMany({
-        where: { novelId: id },
-        orderBy: { chapterNumber: 'asc' },
-      }),
-      prisma.arcMemory.findMany({
-        where: { novelId: id },
-        orderBy: { arcStart: 'asc' },
-      }),
-      prisma.novelMemory.findUnique({
-        where: { novelId: id },
-      }),
-      prisma.chapter.findMany({
-        where: { novelId: id, number: { gte: chapterNumber - 3, lt: chapterNumber } },
-        select: { number: true, content: true },
-      }),
-    ])
+  const messages = buildMessages(config, chapterNumber, memoryContext, chapterIntent)
 
-    const chapterMemoryMap = new Map<number, ChapterMemoryData>()
-    for (const cm of chapterMems) {
-      try {
-        chapterMemoryMap.set(cm.chapterNumber, {
-          summary: cm.summary,
-          characters: JSON.parse(cm.characters || '[]'),
-          threads: JSON.parse(cm.threads || '[]'),
-          foreshadowing: JSON.parse(cm.foreshadowing || '[]'),
-          locations: JSON.parse(cm.locations || '[]'),
-          events: JSON.parse(cm.events || '[]'),
-          emotions: JSON.parse(cm.emotions || '[]'),
-          resources: JSON.parse(cm.resources || '[]'),
-          relationships: JSON.parse(cm.relationships || '[]'),
-          resolvedForeshadowing: JSON.parse(cm.resolvedForeshadowing || '[]'),
-        })
-      } catch {
-        // Skip malformed memory records
-      }
-    }
-
-    const arcMemories: ArcMemoryData[] = arcMems.map(a => ({
-      summary: a.summary,
-      keyEvents: JSON.parse(a.keyEvents || '[]'),
-      activeThreads: JSON.parse(a.activeThreads || '[]'),
-    }))
-
-    const novelMemoryData = novelMem ? {
-      characters: JSON.parse(novelMem.characters || '[]'),
-      worldRules: JSON.parse(novelMem.worldRules || '[]'),
-      majorEvents: JSON.parse(novelMem.majorEvents || '[]'),
-      openThreads: JSON.parse(novelMem.openThreads || '[]'),
-      foreshadowing: JSON.parse(novelMem.foreshadowing || '[]'),
-      lastChapterNum: novelMem.lastChapterNum,
-    } : null
-
-    const recentChapterContents = new Map<number, string>()
-    for (const ch of recentChapters) {
-      recentChapterContents.set(ch.number, ch.content)
-    }
-
-    memoryContext = assembleMemoryContext(
-      chapterNumber,
-      chapterMemoryMap,
-      arcMemories,
-      novelMemoryData,
-      recentChapterContents,
-    )
-  }
-
-  const chapterPrompt = getChapterPrompt(config, chapterNumber, memoryContext)
-
-  const messages: ChatMessage[] = [
-    { role: 'system', content: getSystemPrompt() },
-    { role: 'user', content: chapterPrompt },
-  ]
-
-  let apiKey: string
-  try {
-    apiKey = decrypt(novel.provider.apiKey)
-  } catch {
-    return NextResponse.json({ error: 'Failed to decrypt API key' }, { status: 500 })
-  }
-
-  const aiProvider = createAIProvider({
-    baseUrl: novel.provider.baseUrl,
-    apiKey,
-    model: novel.provider.model,
-    type: novel.provider.type,
-  })
+  const { stream: aiStream, getFullContent } = createChapterStream(provider, messages)
 
   const encoder = new TextEncoder()
 
   const stream = new ReadableStream({
     async start(controller) {
-      let fullContent = ''
-
+      const reader = aiStream.getReader()
       try {
-        for await (const chunk of aiProvider.generateStream(messages)) {
-          fullContent += chunk
-          const data = JSON.stringify({ type: 'chunk', content: chunk })
-          controller.enqueue(encoder.encode(`data: ${data}\n\n`))
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          controller.enqueue(value)
         }
 
-        const lines = fullContent.trim().split('\n')
-        const firstLine = lines[0]
-        const titleMatch = firstLine.match(/^第\d+章[：:]\s*(.+)/)
-        const chapterTitle = titleMatch ? titleMatch[1].trim() : `第${chapterNumber}章`
-        const content = titleMatch
-          ? lines.slice(1).join('\n').trim()
-          : fullContent.trim()
+        const fullContent = getFullContent()
+        if (!fullContent) {
+          controller.close()
+          return
+        }
 
-        const wordCount = content.length
+        const { title, content, wordCount } = parseChapterOutput(fullContent, chapterNumber)
 
         await prisma.chapter.upsert({
           where: { novelId_number: { novelId: id, number: chapterNumber } },
-          update: { title: chapterTitle, content, wordCount },
-          create: { novelId: id, number: chapterNumber, title: chapterTitle, content, wordCount },
+          update: { title, content, wordCount },
+          create: { novelId: id, number: chapterNumber, title, content, wordCount },
         })
 
         // Fire-and-forget background memory extraction
@@ -173,7 +70,7 @@ export async function POST(
         const done = JSON.stringify({
           type: 'done',
           chapter: chapterNumber,
-          title: chapterTitle,
+          title,
           wordCount,
         })
         controller.enqueue(encoder.encode(`data: ${done}\n\n`))

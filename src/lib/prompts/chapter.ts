@@ -1,4 +1,5 @@
 import type { MemoryContext } from '@/lib/memory/types'
+import type { ChapterIntent } from '@/lib/planning/types'
 import { getAntiAIExamples } from './anti-ai'
 import { getGenreRules } from './genre-rules'
 
@@ -26,6 +27,7 @@ export function getChapterPrompt(
   config: ChapterConfig,
   chapterNumber: number,
   memory?: MemoryContext,
+  chapterIntent?: ChapterIntent,
 ): string {
   let prompt = `请创作小说的第${chapterNumber}章。
 
@@ -56,10 +58,45 @@ export function getChapterPrompt(
   // 反 AI 写作参考
   prompt += `\n\n${getAntiAIExamples()}`
 
+  // 章节意图约束（Phase 1: 纯规则规划层）
+  if (chapterIntent) {
+    prompt += `\n\n## 本章写作规划（必须遵守）`
+    prompt += `\n本章核心目标：${chapterIntent.goal}`
+
+    if (chapterIntent.sceneDirective) {
+      prompt += `\n【场景指令】${chapterIntent.sceneDirective}`
+    }
+    if (chapterIntent.moodDirective) {
+      prompt += `\n【情绪指令】${chapterIntent.moodDirective}`
+    }
+    if (chapterIntent.mustAvoid.length > 0) {
+      prompt += `\n\n【禁止事项】`
+      chapterIntent.mustAvoid.forEach(a => (prompt += `\n- ${a}`))
+    }
+    if (chapterIntent.mustKeep.length > 0) {
+      prompt += `\n\n【必须保持】`
+      chapterIntent.mustKeep.forEach(k => (prompt += `\n- ${k}`))
+    }
+    if (chapterIntent.hookAgenda.mustAdvance.length > 0) {
+      prompt += `\n\n【本章必须推进的伏笔】`
+      chapterIntent.hookAgenda.mustAdvance.forEach(h => (prompt += `\n- ${h}`))
+    }
+    if (chapterIntent.hookAgenda.staleDebt.length > 0) {
+      prompt += `\n\n【超期未处理伏笔（优先回收）】`
+      chapterIntent.hookAgenda.staleDebt.forEach(h => (prompt += `\n- ${h}`))
+    }
+  }
+
   if (chapterNumber === 1) {
     prompt += `\n\n这是小说的第一章。请从头开始创作，建立世界观、引入主角和核心冲突。`
   } else if (memory) {
     prompt += `\n\n【上下文信息——请务必基于以下信息保持连贯性】`
+
+    // 叙事锚点：确保章节衔接
+    if (memory.narrativeAnchor) {
+      prompt += `\n\n### 叙事衔接\n${memory.narrativeAnchor}`
+      prompt += `\n请从上述场景自然衔接，不要出现时间线断裂或场景跳跃。`
+    }
 
     if (memory.previousChapterSummary) {
       prompt += `\n\n上一章概要：\n${memory.previousChapterSummary}`

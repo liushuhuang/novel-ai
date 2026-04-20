@@ -74,6 +74,8 @@ model ChapterMemory {
   resources     String   @db.Text
   relationships String   @db.Text
   resolvedForeshadowing String @db.Text @default("[]") @map("resolved_foreshadowing")
+  chapterType   String   @default("") @map("chapter_type")
+  mood          String   @default("") @map("mood")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt      @map("updated_at")
   novel         Novel    @relation(fields: [novelId], references: [id])
@@ -107,6 +109,7 @@ model NovelMemory {
   openThreads     String   @db.Text
   foreshadowing   String   @db.Text
   lastChapterNum  Int      @default(0) @map("last_chapter_num")
+  usedElements    String   @db.Text @default("{}") @map("used_elements")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt      @map("updated_at")
   novel           Novel    @relation(fields: [novelId], references: [id])

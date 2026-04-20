@@ -62,6 +62,8 @@ export async function runMemoryExtraction(
       resources: JSON.stringify(chapterMemoryData.resources),
       relationships: JSON.stringify(chapterMemoryData.relationships),
       resolvedForeshadowing: JSON.stringify(chapterMemoryData.resolvedForeshadowing),
+      chapterType: chapterMemoryData.chapterType ?? '',
+      mood: chapterMemoryData.mood ?? '',
     },
     update: {
       summary: chapterMemoryData.summary,
@@ -74,6 +76,8 @@ export async function runMemoryExtraction(
       resources: JSON.stringify(chapterMemoryData.resources),
       relationships: JSON.stringify(chapterMemoryData.relationships),
       resolvedForeshadowing: JSON.stringify(chapterMemoryData.resolvedForeshadowing),
+      chapterType: chapterMemoryData.chapterType ?? '',
+      mood: chapterMemoryData.mood ?? '',
     },
   })
 
@@ -175,6 +179,8 @@ function parseChapterMemoryJson(cm: {
   resources: string
   relationships: string
   resolvedForeshadowing: string
+  chapterType: string
+  mood: string
 }): ChapterMemoryData {
   return {
     summary: cm.summary,
@@ -187,5 +193,7 @@ function parseChapterMemoryJson(cm: {
     resources: JSON.parse(cm.resources),
     relationships: JSON.parse(cm.relationships),
     resolvedForeshadowing: JSON.parse(cm.resolvedForeshadowing || '[]'),
+    chapterType: cm.chapterType || '',
+    mood: cm.mood || '',
   }
 }

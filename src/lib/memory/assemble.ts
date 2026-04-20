@@ -120,6 +120,18 @@ export function assembleMemoryContext(
     arcSummary = arcMemories[arcIndex].summary
   }
 
+  // 生成叙事锚点：上一章结尾段落
+  let narrativeAnchor: string | undefined
+  if (recentChapterContents && recentChapterContents.size > 0) {
+    const lastChapterContent = recentChapterContents.get(chapterNumber - 1)
+    if (lastChapterContent) {
+      const lastPara = extractLastParagraph(lastChapterContent)
+      if (lastPara) {
+        narrativeAnchor = `上一章（第${chapterNumber - 1}章）结尾场景：${lastPara}`
+      }
+    }
+  }
+
   return {
     previousChapterSummary,
     recentEndings,
@@ -129,6 +141,7 @@ export function assembleMemoryContext(
     foreshadowing,
     recentlyResolved,
     relationships,
+    narrativeAnchor,
   }
 }
 
