@@ -20,17 +20,3 @@ export interface ToolCallBlock {
 export type StreamEvent =
   | { type: 'text'; content: string }
   | { type: 'tool_call'; toolCall: ToolCallBlock }
-
-/** Agent 工具执行结果 */
-export interface ToolResult {
-  toolCallId: string
-  content: string
-}
-
-/** Agent loop 配置 */
-export interface AgentLoopConfig {
-  maxTurns: number
-  onStreamText?: (text: string) => void
-  onToolCall?: (name: string, args: string) => void
-  onToolResult?: (name: string, result: string) => void
-}

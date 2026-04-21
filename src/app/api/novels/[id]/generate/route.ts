@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getTitlePrompt } from '@/lib/prompts/title'
 import { runMemoryExtraction } from '@/lib/memory/extract'
-import { loadGenerationContext, createAgentChapterStream, parseChapterOutput } from '@/lib/generation/pipeline'
+import { loadGenerationContext, createPipelineChapterStream, parseChapterOutput } from '@/lib/generation/pipeline'
 import { auditChapter } from '@/lib/planning/audit'
 import { checkRateLimit } from '@/lib/rate-limit'
 import type { ChatMessage } from '@/types/ai'
@@ -40,7 +40,7 @@ export async function POST(
     nextChapterNumber,
   )
 
-  const { stream: aiStream, getFullContent } = createAgentChapterStream(
+  const { stream: aiStream, getFullContent } = createPipelineChapterStream(
     provider,
     config,
     nextChapterNumber,

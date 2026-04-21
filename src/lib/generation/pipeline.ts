@@ -5,10 +5,8 @@ import { getSystemPrompt } from '@/lib/prompts/system'
 import { getChapterPrompt } from '@/lib/prompts/chapter'
 import { assembleMemoryContext } from '@/lib/memory/assemble'
 import { planChapter } from '@/lib/planning/planner'
-import { runAgentLoop } from '@/lib/agent/loop'
-import { AGENT_TOOLS } from '@/lib/agent/tools'
-import { buildAgentSystemPrompt } from '@/lib/agent/prompt'
-import type { AgentLoopConfig } from '@/lib/agent/types'
+import { runPipeline } from '@/lib/pipeline/runner'
+import type { PipelineContext } from '@/lib/pipeline/types'
 import type { ChatMessage, AIProvider } from '@/types/ai'
 import type { MemoryContext, ChapterMemoryData, ArcMemoryData } from '@/lib/memory/types'
 import type { ChapterIntent } from '@/lib/planning/types'
@@ -216,10 +214,11 @@ export function createChapterStream(
 }
 
 /**
- * 使用 agent loop 生成章节（替代 createChapterStream）
+ * 使用 Pipeline 架构生成章节
+ * Writer → Observer → Settler → Auditor → Reviser
  * 返回 ReadableStream（SSE 格式）+ 完成后的章节内容
  */
-export function createAgentChapterStream(
+export function createPipelineChapterStream(
   provider: AIProvider,
   config: NovelConfig,
   chapterNumber: number,
@@ -233,47 +232,49 @@ export function createAgentChapterStream(
   const encoder = new TextEncoder()
   let fullContent = ''
 
-  const systemPrompt = buildAgentSystemPrompt(
-    config,
-    chapterNumber,
-    memoryContext,
-    chapterIntent,
-  )
+  // 加载上一章内容（用于审计）
+  let previousChapterContent: string | undefined
 
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        const agentConfig: AgentLoopConfig = {
-          maxTurns: 10,
-          onStreamText: (text) => {
+        // 预加载上一章内容
+        if (chapterNumber > 1) {
+          const prevChapter = await prisma.chapter.findFirst({
+            where: { novelId, number: chapterNumber - 1 },
+            select: { content: true },
+          })
+          previousChapterContent = prevChapter?.content
+        }
+
+        const pipelineCtx: PipelineContext = {
+          novelId,
+          chapterNumber,
+          novelConfig: config,
+          provider,
+          memoryContext,
+          chapterIntent,
+          previousChapterContent,
+        }
+
+        const result = await runPipeline(pipelineCtx, {
+          onStreamChunk: (text) => {
             fullContent += text
             const data = JSON.stringify({ type: 'chunk', content: text })
             controller.enqueue(encoder.encode(`data: ${data}\n\n`))
           },
-          onToolCall: (name) => {
-            const data = JSON.stringify({ type: 'tool_call', name })
+          onStageChange: (stage) => {
+            // 阶段切换事件（前端可选择忽略）
+            const data = JSON.stringify({ type: 'stage', stage })
             controller.enqueue(encoder.encode(`data: ${data}\n\n`))
           },
-          onToolResult: () => {
-            // Tool results are not sent to the frontend
-          },
-        }
+        })
 
-        const result = await runAgentLoop(
-          provider,
-          systemPrompt,
-          AGENT_TOOLS,
-          { novelId, chapterNumber },
-          agentConfig,
-        )
-
-        if (result.usedWriteTool) {
-          fullContent = result.finalContent
-        }
+        fullContent = result.writerOutput.fullText
       } catch (error) {
         const errorData = JSON.stringify({
           type: 'error',
-          message: error instanceof Error ? error.message : 'Agent loop failed',
+          message: error instanceof Error ? error.message : 'Pipeline failed',
         })
         controller.enqueue(encoder.encode(`data: ${errorData}\n\n`))
       } finally {

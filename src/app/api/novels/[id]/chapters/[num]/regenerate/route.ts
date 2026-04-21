@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { runMemoryExtraction } from '@/lib/memory/extract'
-import { loadGenerationContext, createAgentChapterStream, parseChapterOutput } from '@/lib/generation/pipeline'
+import { loadGenerationContext, createPipelineChapterStream, parseChapterOutput } from '@/lib/generation/pipeline'
 import { checkRateLimit } from '@/lib/rate-limit'
 
 export async function POST(
@@ -32,7 +32,7 @@ export async function POST(
     chapterNumber,
   )
 
-  const { stream: aiStream, getFullContent } = createAgentChapterStream(
+  const { stream: aiStream, getFullContent } = createPipelineChapterStream(
     provider,
     config,
     chapterNumber,
